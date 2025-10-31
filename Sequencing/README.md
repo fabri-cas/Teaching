@@ -1,2 +1,2 @@
 # Sequencing files
-Sequencing files for students to use
+Sequencing files and raw sequences for students to use
