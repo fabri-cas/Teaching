@@ -1,0 +1,85 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
+# --------------------------------------------------------------------
+# 1. INPUT DATA
+# --------------------------------------------------------------------
+# Substrate concentrations (mM)
+conc = [0.5, 1, 6, 5, 10, 30]
+
+# Replicate velocities (s⁻¹)
+v0 = [
+    [0.11, 0.18, 0.12],
+    [0.20, 0.22, 0.21],
+    [0.35, 0.37, 0.36],
+    [0.55, 0.56, 0.54],
+    [0.69, 0.70, 0.71],
+    [0.81, 0.83, 0.82]
+]
+
+# Total enzyme concentration (µM)
+E_total = 0.05
+
+# --------------------------------------------------------------------
+# 2. COMPUTE MEAN AND STANDARD DEVIATION OF REPLICATES
+# --------------------------------------------------------------------
+velocity_means = np.array([np.mean(v) for v in v0])
+velocity_stds  = np.array([np.std(v, ddof=1) for v in v0])
+
+substrate = np.array(conc, dtype=float)
+
+# --------------------------------------------------------------------
+# 3. DEFINE MICHAELIS–MENTEN MODEL
+# --------------------------------------------------------------------
+def michaelis_menten(S, Vmax, Km):
+    return (Vmax * S) / (Km + S)
+
+# --------------------------------------------------------------------
+# 4. FIT USING WEIGHTED NONLINEAR REGRESSION
+# --------------------------------------------------------------------
+popt, pcov = curve_fit(
+    michaelis_menten,
+    substrate,
+    velocity_means,
+    sigma=velocity_stds,
+    absolute_sigma=True,   # ensures uncertainties reflect the data SD
+    p0=[1, 1]              # initial guesses for Vmax and Km
+)
+
+Vmax_fit, Km_fit = popt
+Vmax_err, Km_err = np.sqrt(np.diag(pcov))
+
+# Calculate kcat and catalytic efficiency
+kcat = Vmax_fit / E_total
+kcat_err = Vmax_err / E_total
+
+efficiency = kcat / (Km_fit * 1e-3)  # M⁻¹·s⁻¹
+efficiency_err = efficiency * np.sqrt(
+    (kcat_err / kcat)**2 + (Km_err / Km_fit)**2
+)
+
+# Print results
+print(f"Km         = {Km_fit:.3f} ± {Km_err:.3f} mM")
+print(f"Vmax       = {Vmax_fit:.3f} ± {Vmax_err:.3f} s⁻¹")
+print(f"kcat       = {kcat:.3f} ± {kcat_err:.3f} s⁻¹")
+print(f"Efficiency = {efficiency:.3f} ± {efficiency_err:.3f} M⁻¹·s⁻¹")
+
+
+# --------------------------------------------------------------------
+# 5. PLOT DATA WITH ERROR BARS AND FIT
+# --------------------------------------------------------------------
+S_fit = np.linspace(min(substrate), max(substrate), 200)
+v_fit = michaelis_menten(S_fit, Vmax_fit, Km_fit)
+
+plt.figure(figsize=(7,5))
+plt.errorbar(substrate, velocity_means, yerr=velocity_stds, fmt='o', capsize=5, label='Mean ± SD')
+plt.plot(S_fit, v_fit, label='Michaelis–Menten fit')
+plt.xlabel("[S] (mM)", fontsize=14)
+plt.ylabel("Initial velocity v₀ (s⁻¹)", fontsize=14)
+plt.title("Michaelis–Menten Curve", fontsize=16)
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.legend(loc =  "lower right", fontsize=12)
+plt.tight_layout()
+plt.show()
